@@ -1,11 +1,17 @@
+import sys
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 
 import cv2
 import numpy as np
 
-from camera_motion import SharedCameraMotion
-from ptz_motion_verification import BackgroundMotionVerifier, VerificationFrame, verify_sequence
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+if PROJECT_ROOT not in sys.path:  # ptz/ tests import root-level and motion/ modules.
+    sys.path.insert(0, PROJECT_ROOT)
+
+from motion.camera_motion import SharedCameraMotion
+from ptz.ptz_motion_verification import BackgroundMotionVerifier, VerificationFrame, verify_sequence
 
 
 def texture(seed=73):

@@ -7,11 +7,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-APP_ROOT = str(Path(__file__).resolve().parent.parent)
-if APP_ROOT not in sys.path:  # Tests live in test/ but import the root modules.
+APP_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+if APP_ROOT not in sys.path:  # Tests live in test/motion/ but import motion/ modules.
     sys.path.insert(0, APP_ROOT)
 
-from camera_motion import CameraMotionResult, SharedCameraMotion
+from motion.camera_motion import CameraMotionResult, SharedCameraMotion
 
 
 EMPTY = np.empty((0, 4), dtype=np.float32)

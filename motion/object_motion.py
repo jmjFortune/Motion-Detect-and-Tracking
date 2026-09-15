@@ -6,10 +6,16 @@ overlap (>= half the full rasterized box, >= 16 pixels). New-view pixels
 never provide stillness evidence. No tracker predictions or control I/O.
 """
 
+import sys
 from dataclasses import dataclass
 import math
+from pathlib import Path
 
 import numpy as np
+
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:  # Sibling import; works as a package module or a script.
+    sys.path.insert(0, str(_HERE))
 
 from camera_motion import CameraMotionResult
 

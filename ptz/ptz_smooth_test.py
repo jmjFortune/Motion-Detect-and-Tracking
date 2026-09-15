@@ -5,6 +5,7 @@ round trips with a separate-process heartbeat watchdog and raw feedback bounds.
 No angle accuracy or physical jerk guarantee is asserted.
 """
 
+import sys
 import argparse
 import csv
 import json
@@ -15,10 +16,14 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+if PROJECT_ROOT not in sys.path:  # ptz/ modules import root-level and motion/ modules.
+    sys.path.insert(0, PROJECT_ROOT)
+
 from hikvision_camera import CameraError, HikvisionClient, add_camera_arguments, client_from_args
-from ptz_web_test import continuous_move
-from ptz_motion_verification import VerificationFrame, create_foreground_detector, verify_sequence
-from smooth_ptz import SmoothRoundTrip, sample_plan
+from ptz.ptz_motion_verification import VerificationFrame, create_foreground_detector, verify_sequence
+from ptz.ptz_web_test import continuous_move
+from ptz.smooth_ptz import SmoothRoundTrip, sample_plan
 
 
 def lease_stop_worker(host, user, password, port, ready, armed, done, tripped,

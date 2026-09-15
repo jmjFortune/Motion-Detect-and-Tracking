@@ -1,3 +1,4 @@
+import sys
 import contextlib
 import io
 import math
@@ -8,9 +9,13 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import patch
 
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+if PROJECT_ROOT not in sys.path:  # ptz/ tests import root-level and ptz/ modules.
+    sys.path.insert(0, PROJECT_ROOT)
+
 from hikvision_camera import CameraError, HikvisionClient
-from ptz_control import AxisController, SecondOrderReference, VelocityRamp
-from ptz_second_order_test import build_parser, check_args, run
+from ptz.ptz_control import AxisController, SecondOrderReference, VelocityRamp
+from ptz.ptz_second_order_test import build_parser, check_args, run
 
 
 class ControllerTests(unittest.TestCase):
@@ -108,7 +113,7 @@ class ScriptSafetyTests(unittest.TestCase):
     def test_simulation_never_constructs_or_moves_camera_client(self):
         with tempfile.TemporaryDirectory() as directory:
             args = build_parser().parse_args(['--output-dir', str(Path(directory)/'simulation')])
-            with patch('ptz_second_order_test.client_from_args', side_effect=AssertionError('network forbidden')), \
+            with patch('ptz.ptz_second_order_test.client_from_args', side_effect=AssertionError('network forbidden')), \
                     contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(run(args), 0)
 
@@ -131,7 +136,7 @@ class ScriptSafetyTests(unittest.TestCase):
         device = Device()
         with tempfile.TemporaryDirectory() as directory:
             args = build_parser().parse_args(['--execute', '--output-dir', str(Path(directory)/'physical')])
-            with patch('ptz_second_order_test.client_from_args', return_value=device), \
+            with patch('ptz.ptz_second_order_test.client_from_args', return_value=device), \
                     contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(run(args), 1)
         self.assertTrue(device.stopped)

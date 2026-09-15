@@ -1,3 +1,4 @@
+import sys
 import contextlib
 import io
 import math
@@ -8,8 +9,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from smooth_ptz import SmoothRoundTrip, SpeedTransition, sample_plan
-from ptz_smooth_test import build_parser, check_args, lease_stop_worker, run
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+if PROJECT_ROOT not in sys.path:  # ptz/ tests import root-level and ptz/ modules.
+    sys.path.insert(0, PROJECT_ROOT)
+
+from ptz.ptz_smooth_test import build_parser, check_args, lease_stop_worker, run
+from ptz.smooth_ptz import SmoothRoundTrip, SpeedTransition, sample_plan
 
 
 class SmoothPlanTests(unittest.TestCase):
@@ -51,7 +56,7 @@ class SmoothPlanTests(unittest.TestCase):
         profile.target = lambda t: 1.
         profile.duration = 5.
         # A sustained step is a filter test, not a rest-to-rest movement plan.
-        with patch('smooth_ptz.validate_plan'):
+        with patch('ptz.smooth_ptz.validate_plan'):
             rows = profile.generate()
         row = sample_plan(rows, .7)
         self.assertAlmostEqual(row['speed'], 1-(1+4*.7)*math.exp(-4*.7), places=7)
@@ -81,7 +86,7 @@ class SmoothScriptSafetyTests(unittest.TestCase):
     def test_offline_never_connects(self):
         with tempfile.TemporaryDirectory() as directory:
             args = build_parser().parse_args(['--output-dir', str(Path(directory)/'plan')])
-            with patch('ptz_smooth_test.client_from_args', side_effect=AssertionError('network')), \
+            with patch('ptz.ptz_smooth_test.client_from_args', side_effect=AssertionError('network')), \
                     contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(run(args), 0)
 
@@ -90,7 +95,7 @@ class SmoothScriptSafetyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)/'tilt-only'
             args = build_parser().parse_args(['--axis', 'tilt', '--output-dir', str(output)])
-            with patch('ptz_smooth_test.client_from_args', side_effect=AssertionError('network')), \
+            with patch('ptz.ptz_smooth_test.client_from_args', side_effect=AssertionError('network')), \
                     contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(run(args), 0)
             report = json.loads((output/'report.json').read_text())
@@ -123,8 +128,8 @@ class SmoothScriptSafetyTests(unittest.TestCase):
         heartbeat = SimpleNamespace(value=0., get_lock=contextlib.nullcontext)
         ready, armed, done, tripped = Event(), Event(True), Event(), Event()
         results = queue.Queue()
-        with patch('ptz_smooth_test.HikvisionClient', return_value=device), \
-                patch('ptz_smooth_test.time.sleep'):
+        with patch('ptz.ptz_smooth_test.HikvisionClient', return_value=device), \
+                patch('ptz.ptz_smooth_test.time.sleep'):
             lease_stop_worker('192.168.1.64', 'admin', 'fake', 80, ready, armed, done,
                               tripped, heartbeat, results, 10.)
         self.assertTrue(ready.is_set())
@@ -210,14 +215,14 @@ class SmoothScriptSafetyTests(unittest.TestCase):
         video.isOpened.return_value = True
         with tempfile.TemporaryDirectory() as directory:
             args = build_parser().parse_args(['--execute', '--output-dir', str(Path(directory)/'test')])
-            with patch('ptz_smooth_test.client_from_args', return_value=device), \
-                    patch('ptz_smooth_test.create_foreground_detector', return_value=lambda image: []), \
-                    patch('ptz_smooth_test.verify_sequence', side_effect=verify), \
-                    patch('ptz_smooth_test.continuous_move', side_effect=move), \
-                    patch('ptz_smooth_test.mp.get_context', return_value=context), \
-                    patch('ptz_smooth_test.SmoothRoundTrip.generate', return_value=plan), \
-                    patch('ptz_smooth_test.time.monotonic', side_effect=clock), \
-                    patch('ptz_smooth_test.time.sleep'), \
+            with patch('ptz.ptz_smooth_test.client_from_args', return_value=device), \
+                    patch('ptz.ptz_smooth_test.create_foreground_detector', return_value=lambda image: []), \
+                    patch('ptz.ptz_smooth_test.verify_sequence', side_effect=verify), \
+                    patch('ptz.ptz_smooth_test.continuous_move', side_effect=move), \
+                    patch('ptz.ptz_smooth_test.mp.get_context', return_value=context), \
+                    patch('ptz.ptz_smooth_test.SmoothRoundTrip.generate', return_value=plan), \
+                    patch('ptz.ptz_smooth_test.time.monotonic', side_effect=clock), \
+                    patch('ptz.ptz_smooth_test.time.sleep'), \
                     patch('ball_camera_detect.LatestFrameCapture', return_value=Capture()), \
                     patch('cv2.VideoWriter', return_value=video), \
                     patch('cv2.imwrite', return_value=True), \

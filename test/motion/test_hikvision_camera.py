@@ -9,8 +9,8 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import unquote, urlsplit
 
-APP_ROOT = Path(__file__).resolve().parent.parent
-if str(APP_ROOT) not in sys.path:  # Tests live in test/ but import the root modules.
+APP_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(APP_ROOT) not in sys.path:  # Tests live in test/motion/; hikvision_camera.py is at root.
     sys.path.insert(0, str(APP_ROOT))
 
 import hikvision_camera

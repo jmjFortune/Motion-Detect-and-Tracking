@@ -6,12 +6,12 @@ from pathlib import Path
 
 import numpy as np
 
-APP_ROOT = str(Path(__file__).resolve().parent.parent)
-if APP_ROOT not in sys.path:  # Tests live in test/ but import the root modules.
+APP_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+if APP_ROOT not in sys.path:  # Tests live in test/motion/ but import motion/ modules.
     sys.path.insert(0, APP_ROOT)
 
-from camera_motion import CameraMotionResult
-from object_motion import (
+from motion.camera_motion import CameraMotionResult
+from motion.object_motion import (
     MotionConfig, MotionTarget, ObjectMotionClassifier, ObjectObservation,
     SalientTargetSelector, TargetSelection,
 )

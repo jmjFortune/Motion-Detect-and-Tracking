@@ -4,6 +4,7 @@ Default is a dry run. A separate spawned process sends repeated stops even if
 the video/main loop stalls. This is NOT device-side expiry or calibrated control.
 """
 
+import sys
 import argparse
 import json
 import multiprocessing as mp
@@ -11,6 +12,10 @@ import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
+
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+if PROJECT_ROOT not in sys.path:  # ptz/ modules import root-level and motion/ modules.
+    sys.path.insert(0, PROJECT_ROOT)
 
 from hikvision_camera import CameraError, HikvisionClient, add_camera_arguments, client_from_args
 

@@ -9,15 +9,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-APP_ROOT = Path(__file__).resolve().parent.parent
-if str(APP_ROOT) not in sys.path:  # Tests live in test/ but import the root modules.
+APP_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(APP_ROOT) not in sys.path:  # Tests live in test/motion/; yolo26n.pt is at root.
     sys.path.insert(0, str(APP_ROOT))
 
 import cv2
 import numpy as np
 from ultralytics.engine.results import Boxes
 
-from unified_motion_detector import (
+from motion.unified_motion_detector import (
     FrameClock, UnifiedMotionDetector, build_parser, parse_source,
     safe_source_label, write_csv_frame, CSV_FIELDS,
     run,
@@ -145,8 +145,8 @@ class UnifiedMotionTests(unittest.TestCase):
                 '--source', str(source), '--headless', '--max-frames', '3', '--csv', str(output)])
             # Only inject existing resources, never detection outputs: this runs
             # actual file decoding, YOLO, BOTSORT, motion and CSV code.
-            with patch('unified_motion_detector.open_capture', return_value=capture), \
-                    patch('unified_motion_detector.UnifiedMotionDetector', return_value=self.detector), \
+            with patch('motion.unified_motion_detector.open_capture', return_value=capture), \
+                    patch('motion.unified_motion_detector.UnifiedMotionDetector', return_value=self.detector), \
                     contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(run(args), 0)
             self.assertFalse(capture.isOpened())
@@ -166,8 +166,8 @@ class UnifiedMotionTests(unittest.TestCase):
             video.release()
             capture = cv2.VideoCapture(str(source))
             args = build_parser().parse_args(['--source', str(source), '--headless', '--csv', str(output)])
-            with patch('unified_motion_detector.open_capture', return_value=capture), \
-                    patch('unified_motion_detector.UnifiedMotionDetector', return_value=self.detector), \
+            with patch('motion.unified_motion_detector.open_capture', return_value=capture), \
+                    patch('motion.unified_motion_detector.UnifiedMotionDetector', return_value=self.detector), \
                     patch.object(self.detector, 'process', side_effect=RuntimeError('inference failed')):
                 with self.assertRaisesRegex(RuntimeError, 'inference failed'):
                     run(args)
@@ -187,7 +187,7 @@ class UnifiedMotionTests(unittest.TestCase):
         self.assertIsNotNone(selected.track_id)
         lost = self.detector.selector.select([], 1., self.background.shape)
         self.assertEqual(lost.status, 'LOST')
-        from unified_motion_detector import FrameResult
+        from motion.unified_motion_detector import FrameResult
         stream = io.StringIO()
         writer = csv.DictWriter(stream, fieldnames=CSV_FIELDS)
         writer.writeheader()
@@ -245,7 +245,7 @@ class InputTests(unittest.TestCase):
                 self.released = True
 
         capture = ClosedCapture()
-        with patch('unified_motion_detector.open_capture', return_value=capture):
+        with patch('motion.unified_motion_detector.open_capture', return_value=capture):
             with self.assertRaisesRegex(RuntimeError, 'Cannot open'):
                 run(build_parser().parse_args(['--headless', '--source', 'missing.mp4']))
         self.assertTrue(capture.released)

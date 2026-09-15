@@ -6,10 +6,16 @@ critically damped filter smooths that target further; dense numerical checks
 verify the resulting float command. Integer/device motion is not jerk-certified.
 """
 
+import sys
 import math
 from dataclasses import dataclass
+from pathlib import Path
 
-from ptz_control import SecondOrderReference, finite_positive
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+if PROJECT_ROOT not in sys.path:  # ptz/ modules import root-level and motion/ modules.
+    sys.path.insert(0, PROJECT_ROOT)
+
+from ptz.ptz_control import SecondOrderReference, finite_positive
 
 
 @dataclass

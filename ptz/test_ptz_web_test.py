@@ -1,15 +1,21 @@
+import sys
 import contextlib
 import io
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+if PROJECT_ROOT not in sys.path:  # ptz/ tests import root-level and ptz/ modules.
+    sys.path.insert(0, PROJECT_ROOT)
+
 from hikvision_camera import HikvisionClient
-from ptz_web_test import build_parser, check_args, continuous_move, run
+from ptz.ptz_web_test import build_parser, check_args, continuous_move, run
 
 
 class WebTestSafety(unittest.TestCase):
     def test_dry_run_never_connects(self):
-        with patch('ptz_web_test.client_from_args', side_effect=AssertionError('network')), \
+        with patch('ptz.ptz_web_test.client_from_args', side_effect=AssertionError('network')), \
                 contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(run(build_parser().parse_args([])), 0)
 

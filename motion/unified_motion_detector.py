@@ -4,6 +4,7 @@ YOLO runs once per frame. BoT-SORT and motion classification reuse one GMC.
 No PTZ commands are sent by this module.
 """
 
+import sys
 import argparse
 import csv
 import math
@@ -19,6 +20,11 @@ import numpy as np
 from ultralytics import YOLO
 from ultralytics.trackers.bot_sort import BOTSORT
 from ultralytics.utils import ROOT, YAML
+
+_HERE = Path(__file__).resolve().parent
+for location in (str(_HERE.parent), str(_HERE)):  # root (hikvision_camera) + motion/ (siblings)
+    if location not in sys.path:  # Works both as a package module and as a script.
+        sys.path.insert(0, location)
 
 from camera_motion import CameraMotionResult, SharedCameraMotion
 from object_motion import (

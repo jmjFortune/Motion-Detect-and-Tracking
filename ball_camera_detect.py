@@ -18,7 +18,7 @@ from pathlib import Path
 import cv2
 
 from hikvision_camera import CameraError, add_camera_arguments, client_from_args
-from unified_motion_detector import (
+from motion.unified_motion_detector import (
     CSV_FIELDS, UnifiedMotionDetector, annotate, resize_to_width, write_csv_frame,
 )
 

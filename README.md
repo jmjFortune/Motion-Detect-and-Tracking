@@ -5,7 +5,7 @@
 在 VSCode 的项目根目录终端中运行：
 
 ```powershell
-uv run python unified_motion_detector.py --source 0
+uv run python motion/unified_motion_detector.py --source 0
 ```
 
 新版采用 YOLO-Nano + BoT-SORT + 共享背景 LK 光流 / RANSAC 部分仿射补偿。
@@ -16,19 +16,19 @@ uv run python unified_motion_detector.py --source 0
 调试时显示所有语义对象与补偿残差：
 
 ```powershell
-uv run python unified_motion_detector.py --source 0 --show-all --show-mask
+uv run python motion/unified_motion_detector.py --source 0 --show-all --show-mask
 ```
 
 视频文件 / 无窗口 / 保存逐帧 CSV：
 
 ```powershell
-uv run python unified_motion_detector.py --source input.mp4 --headless --max-frames 100 --csv output/unified.csv
+uv run python motion/unified_motion_detector.py --source input.mp4 --headless --max-frames 100 --csv output/unified.csv
 ```
 
 海康球机子码流（请使用你自己的地址，不要公开账号密码）：
 
 ```powershell
-uv run python unified_motion_detector.py --source "rtsp://用户名:密码@摄像机IP/Streaming/Channels/102"
+uv run python motion/unified_motion_detector.py --source "rtsp://用户名:密码@摄像机IP/Streaming/Channels/102"
 ```
 
 ### 指标与调参
@@ -45,20 +45,35 @@ uv run python unified_motion_detector.py --source "rtsp://用户名:密码@摄�
 
 检测模块只输出目标 ID、框、运动状态和残余位移；**自身不发送 Pan/Tilt 指令**。独立双轴测试见下文；后续自动跟踪仍需方向、速度映射和视场角标定。
 
-### 测试目录
+### 目录结构与测试
 
-统一运动检测的测试已集中到 `test/`：`test/test_camera_motion.py`（共享相机运动）、`test/test_object_motion.py`（对象运动与显著目标锁定）、`test/test_unified_motion_detector.py`（BoT-SORT 集成、真实 YOLO、CSV 与资源释放）。
+按功能分了目录，**根目录只保留两个脚本**（`ball_camera_detect.py` 实体相机入口 + `hikvision_camera.py` 共享凭据/ISAPI 客户端）：
 
-`test/` 内的测试通过 `sys.path` 把项目根目录加入导入路径，因此可以从任意目录调用，也可以按包路径单独运行某个模块（`python -m unittest test.test_camera_motion`）。
+```
+ball_camera_detect.py      实体球机检测入口（只读）
+hikvision_camera.py        共享：凭据解析、ISAPI 客户端、RTSP 地址（读取根目录 .env）
+motion/                    统一运动检测
+  camera_motion.py           共享相机运动补偿（LK + RANSAC 部分仿射）
+  object_motion.py           对象运动判定与显著目标锁定
+  unified_motion_detector.py 应用与 CLI
+ptz/                       PTZ 云台控制与实机测试（与检测独立）
+  ptz_control.py, smooth_ptz.py, ptz_motion_verification.py
+  ptz_second_order_test.py, ptz_web_test.py, ptz_smooth_test.py, verify_ptz_recording.py
+  test_ptz_*.py, test_smooth_ptz.py
+test/                      测试
+  motion/                    统一运动检测的测试
+  test_hikvision_camera.py   凭据与 URL 处理测试
+old/                       MOG2 基线（保留不动）
+```
 
-根目录原有的 `test_camera_motion.py`、`test_object_motion.py`、`test_unified_motion_detector.py` 已删除（内容全部迁入 `test/`），不要再按可执行测试使用。
+各模块自带 `sys.path` 垫片，因此既能以脚本方式直接运行，也能被测试导入。
 
 验证（不打开真实摄像头）：
 
 ```powershell
-uv run python -m unittest discover -s test -v
+uv run python -m unittest discover -s test -t . -v
 uv run python -m unittest discover -s old -v
-uv run python -m unittest discover -s test -p "test_camera_motion.py" -v
+uv run python -m unittest discover -s ptz -v
 ```
 
 ## 实体球机：电脑窗口显示检测框
@@ -91,20 +106,20 @@ uv run python ball_camera_detect.py --headless --show-all --duration 20
 先模拟，不连接球机，也不需要密码：
 
 ```powershell
-uv run python ptz_second_order_test.py --axis both --duration 12 --return-to-start
+uv run python ptz/ptz_second_order_test.py --axis both --duration 12 --return-to-start
 ```
 
 只读检查位置及设备边界，不移动：
 
 ```powershell
-uv run python ptz_second_order_test.py --probe
+uv run python ptz/ptz_second_order_test.py --probe
 ```
 
 **下列命令会真实转动球机**。确保周围无障碍，避免同时通过网页箭头或其他软件控制。默认只做低速、小角度测试；窗口 Q/Esc/X 或 Ctrl+C 会退出并尝试停止。
 
 ```powershell
-uv run python ptz_second_order_test.py --execute --view --axis pan --pan-step 3 --duration 12 --return-to-start
-uv run python ptz_second_order_test.py --execute --view --axis tilt --tilt-step 2 --duration 12 --return-to-start
+uv run python ptz/ptz_second_order_test.py --execute --view --axis pan --pan-step 3 --duration 12 --return-to-start
+uv run python ptz/ptz_second_order_test.py --execute --view --axis tilt --tilt-step 2 --duration 12 --return-to-start
 ```
 
 `ptz_control.py` 使用临界阻尼二阶参考模型 `x'' + 2ωx' + ω²(x-r)=0`，位置和速度不因目标改变而重置；其后使用速度前馈 + PD 反馈，并限制软件速度和加速度命令。Pan/Tilt 各自维护状态，控制时钟独立于 YOLO 推理。测试输入是小角度阶跃，不是自动跟随检测目标。
@@ -205,7 +220,7 @@ python motion_detector.py --source input.mp4 --output output/detected.mp4 --csv 
 `ptz_web_test.py` 默认仅打印计划，不连接设备。显式执行左右、上下测试：
 
 ```powershell
-uv run python ptz_web_test.py --execute --view --speed 30 --seconds 0.45
+uv run python ptz/ptz_web_test.py --execute --view --speed 30 --seconds 0.45
 ```
 
 密码通过隐藏提示输入，不写入文件。使用球机网页的 `continuous` 接口；
@@ -222,7 +237,7 @@ uv run python ptz_web_test.py --execute --view --speed 30 --seconds 0.45
 ## 连续速度＋二阶平滑＋S 曲线实体测试
 
 ```powershell
-uv run python ptz_smooth_test.py --execute --view
+uv run python ptz/ptz_smooth_test.py --execute --view
 ```
 
 先进行水平往返（约 9 秒），再进行垂直往返（约 8 秒）。默认每秒约 12 次更新
@@ -253,13 +268,13 @@ jerk 已做数值检查，但整数指令及实体运动的 jerk 不保证；此
 只补测垂直方向、每方向匀速保持 2 秒（整轮往返约 12 秒，并非单方向 12 秒）：
 
 ```powershell
-uv run python ptz_smooth_test.py --execute --view --axis tilt --tilt-speed 24 --cruise 2
+uv run python ptz/ptz_smooth_test.py --execute --view --axis tilt --tilt-speed 24 --cruise 2
 ```
 
 可只回放已有录像验证，不连接或驱动球机：
 
 ```powershell
-uv run python verify_ptz_recording.py --video output/ptz-smooth-20260915-203112/physical-test.avi --axis pan
+uv run python ptz/verify_ptz_recording.py --video output/ptz-smooth-<时间戳>/physical-test.avi --axis pan
 ```
 
 该真实录像回归结果：205 帧、189 对可靠相邻帧（92.6%），通过连续背景位移验证。

@@ -1,11 +1,16 @@
 """Offline regression of PTZ video evidence. NEVER connects to a camera."""
 
+import sys
 import argparse
 import csv
 import json
 import math
 from datetime import datetime
 from pathlib import Path
+
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+if PROJECT_ROOT not in sys.path:  # ptz/ modules import root-level and motion/ modules.
+    sys.path.insert(0, PROJECT_ROOT)
 
 import cv2
 

@@ -5,6 +5,7 @@ Physical acceleration and jerk are NOT guaranteed without motor calibration.
 Timed movement pulses expire at the camera; finally always attempts stop.
 """
 
+import sys
 import argparse
 import csv
 import json
@@ -13,8 +14,12 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+if PROJECT_ROOT not in sys.path:  # ptz/ modules import root-level and motion/ modules.
+    sys.path.insert(0, PROJECT_ROOT)
+
 from hikvision_camera import CameraError, add_camera_arguments, client_from_args
-from ptz_control import AxisController
+from ptz.ptz_control import AxisController
 
 FIELDS = ['time', 'axis', 'target', 'reference_position', 'reference_velocity',
           'measured_position', 'measured_velocity', 'command_speed',

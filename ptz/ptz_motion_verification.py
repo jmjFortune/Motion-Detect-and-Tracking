@@ -5,6 +5,7 @@ never substitute PTZ feedback for video, and never relax GMC quality gates.
 Inference/verification runs AFTER the camera stops, outside its control loop.
 """
 
+import sys
 import math
 from collections import Counter
 from dataclasses import dataclass
@@ -12,7 +13,14 @@ from pathlib import Path
 
 import numpy as np
 
-from camera_motion import SharedCameraMotion
+_HERE = Path(__file__).resolve().parent
+for location in (str(_HERE.parent), str(_HERE)):  # repo root and ptz/
+    if location not in sys.path:  # Imported as a module, never executed as a script.
+        sys.path.insert(0, location)
+
+# Package-qualified on purpose: this module is only ever imported, and using the
+# same name the tests use keeps a single class object (no duplicate module load).
+from motion.camera_motion import SharedCameraMotion
 
 
 @dataclass
