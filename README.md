@@ -2,6 +2,10 @@
 
 ## 静止 / 慢速移动相机统一检测（当前版本）
 
+> 想直接看**实体球机**的画面窗口？用下面的「实体球机：电脑窗口显示检测框」一节：
+> `uv run python ball_camera_detect.py --show-all`
+> 本节的 `--source 0` 指的是本机摄像头。
+
 在 VSCode 的项目根目录终端中运行：
 
 ```powershell
@@ -76,32 +80,85 @@ uv run python -m unittest discover -s old -v
 uv run python -m unittest discover -s ptz -v
 ```
 
-## 实体球机：电脑窗口显示检测框
+## 实体球机：电脑窗口显示检测框（常用）
 
 已连接设备 `192.168.1.64`，型号 `DS-2DC2402IW-DE3`。程序在电脑端处理视频，**不会把检测框写回球机码流，所以网页预览仍是原始画面**。
+
+**启动画面窗口**（在项目根目录执行，窗口开在本机桌面）：
 
 ```powershell
 uv run python ball_camera_detect.py --show-all
 ```
 
-凭据解析顺序：命令行参数 → 进程环境变量 `PTZ_PASSWORD` / `CAMERA_PASSWORD` / `CAMERA_USER` / `CAMERA_HOST` → 工作区 `.env` 文件 → 隐藏提示输入。`.env` 已在 `.gitignore` 中忽略，密码不写入报告、不打印、也不出现在错误信息里。默认子码流 102，关闭窗口或 Q/Esc 退出。此脚本只读视频和云台状态，绝不调用移动/停止接口。
+- 黄色框＝普通运动对象，红色框＝已锁定目标，灰色框＝STATIC/UNKNOWN（`--show-all` 才显示）；左上角叠加 FPS、GMC 补偿质量与锁定状态，画面中心有十字准星。
+- **不加 `--duration` 就没有时间限制，一直显示到你手动退出**；按 `Q`、按 `Esc` 或直接关闭窗口都会退出并释放 RTSP 与窗口资源。
+- 如果只想跑固定时长（例如让脚本自己结束、不用守在电脑前），加 `--duration 30`；加 `--max-frames 300` 则处理满 300 帧后结束。
+- **必须用 `uv run python` 或 `.\.venv\Scripts\python.exe`**；直接用系统 `python` 会报 `No module named 'cv2'`（依赖装在 `.venv` 里）。
+
+只显示运动对象（默认行为，不显示静止对象）：去掉 `--show-all` 即可：
 
 ```powershell
-# 可选：把 CAMERA_HOST / CAMERA_USER / CAMERA_PASSWORD 写进工作区 .env，之后无需再输密码
+uv run python ball_camera_detect.py
+```
+
+有限时长无窗口检查（不需要人在电脑前，结果落盘）：
+
+```powershell
 uv run python ball_camera_detect.py --headless --show-all --duration 20
 ```
 
-2026-09-15 第二次实机检查（统一运动检测流水线首次上真实球机）：207 帧/20.07 秒、10.31 FPS、GMC 可靠 192/207（92.8%，失败全部在启动前 2.8 秒）、10 个跟踪 ID、839 条人员观测、锁定 TRACKING 667 帧；运行前后云台反馈完全一致，移动请求 0。完整验收报告见 `output/ball-detect-20260915-210952/real-camera-acceptance.md`，其中记录了 9 帧残余速度异常（需人工看画面定性）以及尚未覆盖的转动/挥手/遮挡场景。
-
-有限时长无窗口检查：
+用本机摄像头（不是球机）启动同一套统一运动检测窗口：
 
 ```powershell
-uv run python ball_camera_detect.py --headless --show-all --duration 20
+uv run python motion/unified_motion_detector.py --source 0 --show-all --show-mask
 ```
 
-每次新建 `output/ball-detect-时间/`，含 CSV、标注截图和报告。2026-09-15 实机检查处理 191 帧/20.08 秒，约 9.51 FPS；识别到了完整人物运动框，检测前后云台原始反馈均为 `azimuth=2854,elevation=129,zoom=10`，发送移动请求数为 0。这是该次实测，不是性能或准确率保证。接流线程只保留最新帧，较慢的推理会丢弃积压帧而不是排队播放旧画面。
+凭据解析顺序：命令行参数 → 进程环境变量 `PTZ_PASSWORD` / `CAMERA_PASSWORD` / `CAMERA_USER` / `CAMERA_HOST` → 工作区 `.env` 文件 → 隐藏提示输入。`.env` 已在 `.gitignore` 中忽略，密码不写入报告、不打印、也不出现在错误信息里。默认子码流 102；此脚本只读视频和云台状态，绝不调用移动/停止接口，报告里始终记录 `ptz_move_requests_sent: 0`。
+
+每次运行新建 `output/ball-detect-时间/`，含 `detections.csv`（逐帧每目标：ID/类别/框/状态/残余速度/运动比例/GMC 质量）、标注截图 `best.jpg`、`last.jpg` 和 `report.json`。接流线程只保留最新帧，较慢的推理会丢弃积压帧而不是排队播放旧画面（报告里的 `skipped_stream_frames`）。
+
+2026-09-15 实机检查：20 秒无窗口运行两次得到 GMC 可靠率 92.8% 与 97.0%（207 帧 / 231 帧、10~11.5 FPS、每次 10 个跟踪 ID、700~840 条人员观测）；两次运行前后云台反馈完全一致，移动请求均为 0。验收报告见 `docs/reports/real-camera-acceptance.md`。
+
+**GMC 可靠率随场景剧烈变化，不要把它当成固定性能。** 同一命令连续两次实测出现 **9% 与 98%** 的差距，原因是前景（被跟踪的人/狗/猫框）会从背景中挖掉，**当目标贴近镜头、框铺满画面时背景角点不足，GMC 就退化为 UNKNOWN**（那两次的 `insufficient background corners` 分别是 134 帧和 0 帧）。可靠率低时不是程序坏了：此时不会据此新确认运动目标，也不会输出错误坐标，只是运动判定停在 UNKNOWN，画面里只剩 STATIC/UNKNOWN 框。
+
+排查手法：看报告里的 `gmc_reliable_frames`、`skipped_stream_frames`，以及 `detections.csv` 的 `gmc_reason` 列（`insufficient background corners` = 画面被目标占满；`insufficient spatial coverage` = 背景特征集中在局部；`first frame` = 首帧正常无参考）。
 
 ## 双轴二阶控制测试（独立于目标检测）
+
+## 卡尔曼预测移动目标跟踪（主动转动球机）
+
+默认命令只做离线控制器仿真，不连接球机：
+
+```powershell
+uv run python ball_camera_track.py
+```
+
+实体跟踪必须显式加入 `--execute`：
+
+```powershell
+uv run python ball_camera_track.py --execute --show-all
+```
+
+处理链为 YOLO 完整对象检测 → BoT-SORT ID → 显著 MOVING 目标锁定 → 二维恒速
+卡尔曼预测 → 归一化画面中心误差 → 二阶滤波与 jerk/加速度/速度受限连续 Pan/Tilt。
+预测仅补偿约 0.2 秒的检测与执行延迟；目标丢失、观测超过 0.5 秒、GMC 不可靠或
+对象不再是 MOVING 时立即发零速，绝不靠预测盲追。
+
+默认目标是同一 ID 连续可见 10 秒，实机最长运行 20 秒。控制速度上限为 Pan/Tilt
+各 24/100，相对起点默认限制在原始反馈 ±150（名义约 ±15°，尚未物理标定）。
+独立进程看门狗监控 0.8 秒心跳，退出与异常路径重复停止。默认中心死区为半画宽的
+8% 与半画高的 10%，避免框抖动引发云台来回修正。
+
+每次结果位于 `output/ball-track-时间/`：
+
+- `tracking-error.csv` 与 `tracking-error.png`：横向、纵向、径向中心误差曲线；
+- `control.csv`：预测中心、控制命令、边界阻止和 PTZ 反馈；
+- `center-capture.jpg`：人物连续居中至少 3 帧、云台低速且拉普拉斯清晰度达到阈值时，
+  从未标注原图候选中只保存最清晰的一张；
+- `report.json`：是否连续稳定跟踪 10 秒、抓拍是否达标、停止确认及限制说明。
+
+软件命令的 jerk 限制不等于电机物理 jerk 保证；目前是图像闭环控制，指令单位也不
+是已标定角速度。首次实体运行应有人在场，并确保球机周围无障碍。
 
 先模拟，不连接球机，也不需要密码：
 

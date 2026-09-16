@@ -53,6 +53,7 @@ class LoadEnvTests(unittest.TestCase):
             os.environ.pop('CAMERA_USER', None)
             script = (
                 'import os\n'
+                'os.environ.pop("CAMERA_PASSWORD", None)\n'
                 'os.environ["PTZ_PASSWORD"] = "already-set"\n'
                 + self.child_preamble(env_file) +
                 'print("user", os.environ.get("CAMERA_USER"))\n'

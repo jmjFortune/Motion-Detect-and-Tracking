@@ -148,6 +148,20 @@ class HikvisionClient:
             ET.SubElement(body, name).text = '0'
         return self.request_xml(f'/ISAPI/PTZCtrl/channels/{channel}/continuous', 'PUT', body)
 
+    def continuous_move(self, pan, tilt, channel=1, command_limit=30):
+        """Set bounded Pan/Tilt velocity; zoom is always explicitly zero."""
+        if (type(command_limit) is not int or not 1 <= command_limit <= 60 or
+                not all(type(value) is int and abs(value) <= command_limit
+                        for value in (pan, tilt))):
+            raise ValueError('PTZ velocity command exceeds configured safe limit')
+        # Match the camera web UI's proven continuous-drive payload exactly.
+        # This model acknowledges the namespaced variant but does not reliably
+        # energize the motors for it.
+        body = ET.Element('PTZData')
+        for name, value in (('pan', pan), ('tilt', tilt), ('zoom', 0)):
+            ET.SubElement(body, name).text = str(value)
+        return self.request_xml(f'/ISAPI/PTZCtrl/channels/{channel}/continuous', 'PUT', body)
+
     def rtsp_source(self, channel=102):
         if not isinstance(channel, int) or channel <= 0:
             raise ValueError('Streaming channel must be positive')
