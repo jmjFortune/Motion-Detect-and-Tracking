@@ -49,12 +49,13 @@ uv run python motion/unified_motion_detector.py --source "rtsp://用户名:密�
 
 检测模块只输出目标 ID、框、运动状态和残余位移；**自身不发送 Pan/Tilt 指令**。独立双轴测试见下文；后续自动跟踪仍需方向、速度映射和视场角标定。
 
-### 目录结构与测试
+### 目录结构
 
-按功能分了目录，**根目录只保留两个脚本**（`ball_camera_detect.py` 实体相机入口 + `hikvision_camera.py` 共享凭据/ISAPI 客户端）：
+按功能分了目录：
 
 ```
 ball_camera_detect.py      实体球机检测入口（只读）
+ball_camera_track.py       预测式目标跟踪（默认离线仿真，--execute 才转云台）
 hikvision_camera.py        共享：凭据解析、ISAPI 客户端、RTSP 地址（读取根目录 .env）
 motion/                    统一运动检测
   camera_motion.py           共享相机运动补偿（LK + RANSAC 部分仿射）
@@ -63,22 +64,9 @@ motion/                    统一运动检测
 ptz/                       PTZ 云台控制与实机测试（与检测独立）
   ptz_control.py, smooth_ptz.py, ptz_motion_verification.py
   ptz_second_order_test.py, ptz_web_test.py, ptz_smooth_test.py, verify_ptz_recording.py
-  test_ptz_*.py, test_smooth_ptz.py
-test/                      测试
-  motion/                    统一运动检测的测试
-  test_hikvision_camera.py   凭据与 URL 处理测试
-old/                       MOG2 基线（保留不动）
 ```
 
-各模块自带 `sys.path` 垫片，因此既能以脚本方式直接运行，也能被测试导入。
-
-验证（不打开真实摄像头）：
-
-```powershell
-uv run python -m unittest discover -s test -t . -v
-uv run python -m unittest discover -s old -v
-uv run python -m unittest discover -s ptz -v
-```
+各模块自带 `sys.path` 垫片，因此既能以脚本方式直接运行，也能被独立导入。
 
 ## 实体球机：电脑窗口显示检测框（常用）
 
@@ -117,7 +105,7 @@ uv run python motion/unified_motion_detector.py --source 0 --show-all --show-mas
 
 每次运行新建 `output/ball-detect-时间/`，含 `detections.csv`（逐帧每目标：ID/类别/框/状态/残余速度/运动比例/GMC 质量）、标注截图 `best.jpg`、`last.jpg` 和 `report.json`。接流线程只保留最新帧，较慢的推理会丢弃积压帧而不是排队播放旧画面（报告里的 `skipped_stream_frames`）。
 
-2026-09-15 实机检查：20 秒无窗口运行两次得到 GMC 可靠率 92.8% 与 97.0%（207 帧 / 231 帧、10~11.5 FPS、每次 10 个跟踪 ID、700~840 条人员观测）；两次运行前后云台反馈完全一致，移动请求均为 0。验收报告见 `docs/reports/real-camera-acceptance.md`。
+2026-09-15 实机检查：20 秒无窗口运行两次得到 GMC 可靠率 92.8% 与 97.0%（207 帧 / 231 帧、10~11.5 FPS、每次 10 个跟踪 ID、700~840 条人员观测）；两次运行前后云台反馈完全一致，移动请求均为 0。
 
 **GMC 可靠率随场景剧烈变化，不要把它当成固定性能。** 同一命令连续两次实测出现 **9% 与 98%** 的差距，原因是前景（被跟踪的人/狗/猫框）会从背景中挖掉，**当目标贴近镜头、框铺满画面时背景角点不足，GMC 就退化为 UNKNOWN**（那两次的 `insufficient background corners` 分别是 134 帧和 0 帧）。可靠率低时不是程序坏了：此时不会据此新确认运动目标，也不会输出错误坐标，只是运动判定停在 UNKNOWN，画面里只剩 STATIC/UNKNOWN 框。
 
@@ -189,28 +177,6 @@ uv run python ptz/ptz_second_order_test.py --execute --view --axis tilt --tilt-s
 - `--return-to-start` 只是后半程把参考目标改回起点，不能保证有限时间内精确复位；报告记录最终偏差。紧急停止优先于平滑约束。
 - 每次输出 `output/ptz-test-时间/trajectory.csv` 和 `report.json`；`--view` 显示实机码流，并保存 `physical-test.avi` 和截图。报告区分模拟/实机，含反馈角度、峰值命令和停止确认。停止请求被接受与机体真正停稳分别记录。
 
-## 保留版本：MOG2 基线
-
-旧代码原样保留在 `old/`，在项目根目录运行：
-
-```powershell
-uv run python old/motion_detector.py --source 0
-```
-
-以下是旧版说明；命令中的 `motion_detector.py` 应替换为 `old/motion_detector.py`。
-
-该程序用于球机静止时自动发现运动目标。目前完成：
-
-- MOG2 自适应背景建模；
-- 阴影过滤和形态学去噪；
-- 连通域运动区域提取；
-- MOG2 与 YOLO 融合，只输出完整的人、狗、猫等语义目标框；
-- 对象大小、运动量与位置连续性结合的显著目标选择；
-- 摄像头、视频文件和 RTSP 视频流输入；
-- 可选的标注视频与 CSV 输出。
-
-球机开始转动后不要继续使用本模块进行背景减除。后续阶段应切换到目标跟踪、光流相机运动补偿、卡尔曼预测和云台控制。
-
 ## 安装
 
 ```powershell
@@ -219,58 +185,7 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-本工作区已经创建了 `.venv`。如果 PowerShell 禁止执行激活脚本，也可以直接使用：
-
-```powershell
-.\.venv\Scripts\python.exe motion_detector.py --source 0
-```
-
-## 运行
-
-电脑摄像头：
-
-```powershell
-python motion_detector.py --source 0
-```
-
-默认使用 `yolo26n.pt`，只显示 `person,dog,cat`，而不是皮肤、眼镜等零散运动区域。模型首次使用时会自动下载。
-
-如果只想查看未经语义合并的原始运动块：
-
-```powershell
-python motion_detector.py --source 0 --mode raw
-```
-
-视频文件：
-
-```powershell
-python motion_detector.py --source input.mp4
-```
-
-海康 RTSP 子码流：
-
-```powershell
-python motion_detector.py --source "rtsp://用户名:密码@摄像机IP/Streaming/Channels/102"
-```
-
-保存结果：
-
-```powershell
-python motion_detector.py --source input.mp4 --output output/detected.mp4 --csv output/detections.csv
-```
-
-按 `Q` 或 `Esc` 退出。
-
-## 常用调参
-
-- 小目标检测不到：降低 `--min-area`，例如 `--min-area 400`。
-- 完整对象没有被判为运动：降低 `--min-motion-ratio` 或 `--min-motion-pixels`。
-- 需要检测其他类别：例如 `--classes person,dog,cat,bird`。
-- 噪声误报较多：提高 `--min-area` 或 `--var-threshold`。
-- 启动阶段误报：提高 `--warmup`，并保证背景建模时球机静止。
-- 运行较慢：降低 `--resize-width`，例如 `--resize-width 640`。
-
-程序默认预热 45 帧。预热期间不会输出目标框。
+本工作区已经创建了 `.venv`。如果 PowerShell 禁止执行激活脚本，也可以直接使用 `.\.venv\Scripts\python.exe` 运行任一脚本。
 
 ## 实体球机：网页接口短时运动测试
 

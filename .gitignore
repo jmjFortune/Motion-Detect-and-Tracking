@@ -1,5 +1,7 @@
 .venv/
+.worktrees/
 .env
+!.env.example
 __pycache__/
 output/
 *.pyc
